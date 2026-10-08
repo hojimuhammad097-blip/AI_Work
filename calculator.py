@@ -277,7 +277,7 @@ HTML_PAGE = """<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Калькулятор</title>
 <style>
   :root {
@@ -296,13 +296,21 @@ HTML_PAGE = """<!DOCTYPE html>
     --radius: 14px;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { height: 100%; }
   body {
-    margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+    margin: 0; min-height: 100vh; min-height: 100dvh; height: 100dvh; background: var(--bg); color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-    display: flex; justify-content: center; align-items: flex-start;
+    display: flex; justify-content: center; align-items: stretch;
     padding: 12px;
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    touch-action: manipulation;
+    overscroll-behavior: none;
   }
-  .app { width: 100%; max-width: 430px; display: flex; flex-direction: column; gap: 12px; }
+  .app { width: 100%; max-width: 430px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px;
+         min-height: 100%; height: 100%; }
   .topbar { display: flex; align-items: center; gap: 10px; padding-top: 6px; }
   .brand { font-size: 1.25rem; font-weight: 700; }
   .brand small { display: block; color: var(--muted); font-size: 0.8rem; font-weight: 400; }
@@ -316,24 +324,27 @@ HTML_PAGE = """<!DOCTYPE html>
   #openHistory:hover { border-color: var(--accent); }
   #openHistory:active { transform: scale(.94); }
   .card { background: var(--card); border-radius: var(--radius); padding: 14px;
-          box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+          box-shadow: 0 10px 30px rgba(0,0,0,.35);
+          flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
   .display {
     background: var(--display); border-radius: var(--radius);
     padding: 16px 14px; min-height: 110px;
     display: flex; flex-direction: column; justify-content: center; gap: 6px;
-    overflow: hidden;
+    overflow: hidden; flex-shrink: 0;
   }
   #expr {
     width: 100%; background: transparent; border: none; outline: none;
     color: var(--muted); font-size: 1.15rem; text-align: right;
     min-height: 1.6em; word-break: break-all;
+    caret-color: transparent; user-select: none; -webkit-user-select: none;
   }
+  #expr[readonly] { caret-color: transparent; }
   #result { font-size: 2.4rem; font-weight: 800; text-align: right;
             min-height: 1.3em; word-break: break-all; line-height: 1.1; }
   #result.ok { color: var(--text); }
   #result.err { color: var(--btn-danger-hover); font-size: 1.15rem; font-weight: 600; }
   .grid {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: auto; padding-top: 12px;
   }
   button.key {
     border: none; border-radius: 12px; background: var(--btn); color: var(--text);
@@ -349,7 +360,7 @@ HTML_PAGE = """<!DOCTYPE html>
               grid-column: span 4; min-height: 66px; }
   button.eq:hover { background: var(--btn-op-hover); }
   button.danger { color: #fecaca; }
-  .hint { color: var(--muted); font-size: 0.78rem; text-align: center; margin-top: 10px; }
+  .hint { color: var(--muted); font-size: 0.78rem; text-align: center; margin-top: 10px; margin-bottom: 0; }
   /* История — LEFT DRAWER: выезжает слева поверх кнопок калькулятора.
      Калькулятор (.app) при этом не перестраивается; правая колонка
      кнопок остаётся видимой, т.к. ширина drawer < 100%. */
@@ -409,6 +420,10 @@ HTML_PAGE = """<!DOCTYPE html>
     button.key { min-height: 58px; font-size: 1.25rem; }
     #result { font-size: 2rem; }
   }
+  @media (min-height: 700px) {
+    button.key { min-height: 64px; }
+    button.eq { min-height: 68px; }
+  }
 </style>
 </head>
 <body>
@@ -419,7 +434,7 @@ HTML_PAGE = """<!DOCTYPE html>
   </div>
   <div class="card">
     <div class="display">
-      <input id="expr" type="text" placeholder="0" autocomplete="off" spellcheck="false" aria-label="Выражение">
+      <input id="expr" type="text" placeholder="0" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" readonly aria-label="Выражение" aria-readonly="true">
       <div id="result" class="ok">0</div>
     </div>
     <div class="grid" id="keys">
@@ -526,23 +541,68 @@ async function doEquals() {
     showPreview('Нет связи с сервером', false);
   }
 }
+function insertAtCursor(text) {
+  // Работает и для readonly-дисплея (soft keyboard подавлен,
+  // вставка идёт программно, поэтому физ. клавиатура не страдает).
+  // Если поле не в фокусе — добавляем в конец, иначе в каретку.
+  let s = exprEl.value.length, en = exprEl.value.length;
+  try {
+    if (document.activeElement === exprEl &&
+        typeof exprEl.selectionStart === 'number' &&
+        typeof exprEl.selectionEnd === 'number') {
+      s = exprEl.selectionStart; en = exprEl.selectionEnd;
+    }
+  } catch(e) {}
+  exprEl.value = exprEl.value.slice(0, s) + text + exprEl.value.slice(en);
+}
+function hideKeyboard() {
+  // Убираем фокус с кнопок/поля, чтобы Android спрятал soft keyboard,
+  // если он был открыт. Дисплей readonly, поэтому focus() сам по себе
+  // клавиатуру не открывает, но blur — надёжная страховка.
+  try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch(e) {}
+}
 document.getElementById('keys').addEventListener('click', (e) => {
+  // preventDefault + blur кнопки: нажатие кнопок не должно
+  // переводить фокус в текстовое поле с вызовом Android keyboard.
+  e.preventDefault();
   const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.act === 'clear') { exprEl.value = ''; showPreview('0', true); exprEl.focus(); }
-  else if (b.dataset.act === 'back') { exprEl.value = exprEl.value.slice(0, -1); exprEl.focus(); }
+  if (b.dataset.act === 'clear') { exprEl.value = ''; showPreview('0', true); }
+  else if (b.dataset.act === 'back') { exprEl.value = exprEl.value.slice(0, -1); }
   else if (b.dataset.act === 'eq') { doEquals(); }
   else if (b.dataset.ins) {
-    const s = exprEl.selectionStart ?? exprEl.value.length;
-    const en = exprEl.selectionEnd ?? exprEl.value.length;
-    exprEl.value = exprEl.value.slice(0, s) + b.dataset.ins + exprEl.value.slice(en);
-    exprEl.focus();
+    insertAtCursor(b.dataset.ins);
   }
+  try { b.blur(); } catch(err) {}
+  hideKeyboard();
+});
+// mousedown/touchstart: не даём WebView переставить фокус так,
+// чтобы открылась системная клавиатура; клик всё равно дойдёт.
+['mousedown', 'touchstart'].forEach((ev) => {
+  document.getElementById('keys').addEventListener(ev, (e) => {
+    if (e.target && e.target.closest && e.target.closest('button')) { e.preventDefault(); }
+  }, {passive: false});
 });
 exprEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); doEquals(); }
   else if (e.key === 'Escape') {
     if (drawer.classList.contains('open')) { closeHistoryPanel(); }
     else { exprEl.value = ''; showPreview('0', true); }
+  }
+});
+// Физ./системная клавиатура при readonly-дисплее:
+// символы не печатаются браузером сами, поэтому вставляем вручную.
+// Soft keyboard при этом не открывается (поле readonly + inputmode=none).
+document.addEventListener('keydown', (e) => {
+  if (drawer.classList.contains('open')) { return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) { return; }
+  const t = e.target;
+  if (t && (t.tagName === 'TEXTAREA' || t.closest?.('#historyDrawer'))) { return; }
+  if (e.key === 'Enter') { e.preventDefault(); doEquals(); return; }
+  if (e.key === 'Backspace') { e.preventDefault(); exprEl.value = exprEl.value.slice(0, -1); return; }
+  if (e.key === 'Escape') { return; } // уже обработан выше
+  if (e.key && e.key.length === 1 && '0123456789+-*/%.(),×÷− '.includes(e.key)) {
+    e.preventDefault();
+    insertAtCursor(e.key);
   }
 });
 document.addEventListener('keydown', (e) => {
@@ -565,7 +625,10 @@ drawer.addEventListener('touchend', (e) => {
   if (_touchX - endX > 40) { closeHistoryPanel(); }
   _touchX = null;
 }, {passive: true});
-exprEl.focus();
+// Стартовый фокус НЕ ставим: WebView не должен автофокусировать
+// текстовое поле при запуске, иначе Android сразу покажет keyboard.
+// Дисплей и так readonly, но отсутствие autofocus — требование задачи.
+if (document.activeElement && document.activeElement.blur) { try { document.activeElement.blur(); } catch(e) {} }
 renderHistory();
 </script>
 </body>
