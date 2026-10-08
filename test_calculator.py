@@ -357,29 +357,28 @@ class TestHistoryPanel(unittest.TestCase):
         self.assertNotIn('class="hint"', HTML_PAGE)
 
     def test_keypad_layout(self):
-        # Раскладка строго:
-        # C ( ) % / 7 8 9 ÷ / 4 5 6 × / 1 2 3 − / 0 . ⌫ + / = на всю ширину.
+        # Раскладка строго по Ali2 (Samsung, 5x4):
+        # C () % ÷ / 7 8 9 × / 4 5 6 − / 1 2 3 + / +/− 0 , = (в правом углу).
         order = [
             'data-act="clear">C',
-            'data-ins="(">(',
-            'data-ins=")">)',
+            'data-act="parens">()',
             'data-ins="%">%',
+            'data-ins="÷">÷',
             'data-ins="7">7',
             'data-ins="8">8',
             'data-ins="9">9',
-            'data-ins="÷">÷',
+            'data-ins="×">×',
             'data-ins="4">4',
             'data-ins="5">5',
             'data-ins="6">6',
-            'data-ins="×">×',
+            'data-ins="−">−',
             'data-ins="1">1',
             'data-ins="2">2',
             'data-ins="3">3',
-            'data-ins="−">−',
-            'data-ins="0">0',
-            'data-ins=".">.',
-            'data-act="back">⌫',
             'data-ins="+">+',
+            'data-act="neg">+/−',
+            'data-ins="0">0',
+            'data-ins=",">,',
             'data-act="eq">=',
         ]
         pos = -1
@@ -388,12 +387,26 @@ class TestHistoryPanel(unittest.TestCase):
             self.assertGreater(cur, -1, f"не найдена кнопка {token}")
             self.assertGreater(cur, pos, f"кнопка {token} не на своём месте")
             pos = cur
-        # = на всю ширину.
-        self.assertIn('grid-column: span 4', HTML_PAGE)
-        # Цифровые кнопки на старых местах (проверка соседства).
+        # Скобки — ОДНА кнопка "()", отдельных "(" и ")" нет.
+        self.assertNotIn('data-ins="("', HTML_PAGE)
+        self.assertNotIn('data-ins=")"', HTML_PAGE)
+        # Разделитель — запятая (Ali2), точки-кнопки нет.
+        self.assertNotIn('data-ins="."', HTML_PAGE)
+        # Backspace живёт вверху дисплея, а не в сетке.
+        grid_start = HTML_PAGE.find('id="keys"')
+        back_pos = HTML_PAGE.find('data-act="back"')
+        self.assertGreater(back_pos, -1)
+        self.assertLess(back_pos, grid_start)
+        # "=" в правом нижнем углу обычной ячейкой, НЕ на всю ширину.
+        self.assertNotIn('grid-column: span 4', HTML_PAGE)
+        # Цифровые кнопки на своих местах (проверка соседства).
         self.assertLess(HTML_PAGE.find('data-ins="7"'), HTML_PAGE.find('data-ins="8"'))
         self.assertLess(HTML_PAGE.find('data-ins="4"'), HTML_PAGE.find('data-ins="5"'))
         self.assertLess(HTML_PAGE.find('data-ins="1"'), HTML_PAGE.find('data-ins="2"'))
+        # Правая колонка без разрывов: 9/×, 6/−, 3/+ идут подряд через границу строк.
+        self.assertLess(HTML_PAGE.find('data-ins="9"'), HTML_PAGE.find('data-ins="×"'))
+        self.assertLess(HTML_PAGE.find('data-ins="6"'), HTML_PAGE.find('data-ins="−"'))
+        self.assertLess(HTML_PAGE.find('data-ins="3"'), HTML_PAGE.find('data-ins="+"'))
 
     def test_green_operation_buttons(self):
         # Оранжевые кнопки операций и = заменены на зелёноватые.
@@ -566,6 +579,83 @@ class TestHistoryPanel(unittest.TestCase):
         self.assertIn("closeHistoryPanel()", click_body)
         # После выбора фокус/каретка возвращаются в калькулятор для продолжения
         self.assertIn("setSelectionRange(exprEl.value.length", HTML_PAGE)
+
+
+    def test_pi_constant(self):
+        # Кнопка π из доп. функций: нормализация в число, математика цела.
+        self.assertEqual(normalize_expression("π"), "(3.14159265358979)")
+        self.assertAlmostEqual(calculate("2×π"), 6.28318530717958)
+        self.assertTrue(evaluate_expression("45+π")["ok"])
+
+
+class TestSamsungUI(unittest.TestCase):
+    """Дизайн Ali2 + функции Ali3: дисплей, одна History, память, доп. функции,
+    живой результат, отсутствие блокировки touch."""
+
+    def test_single_history_button(self):
+        # Только ОДНА широкая кнопка «История» под дисплеем.
+        self.assertEqual(HTML_PAGE.count('id="openHistory"'), 1)
+        btn_start = HTML_PAGE.find('id="openHistory"')
+        btn_end = HTML_PAGE.find('</button>', btn_start)
+        self.assertIn('История', HTML_PAGE[btn_start:btn_end])
+        display_pos = HTML_PAGE.find('class="display"')
+        grid_pos = HTML_PAGE.find('class="grid"')
+        self.assertLess(display_pos, btn_start)
+        self.assertLess(btn_start, grid_pos)
+
+    def test_display_tools_ali3(self):
+        # Иконки Ali3 внизу дисплея: история, память, доп. функции, Backspace.
+        for tool_id in ['id="toolHistory"', 'id="toolMemory"', 'id="toolFx"', 'id="toolBack"']:
+            self.assertIn(tool_id, HTML_PAGE)
+        self.assertIn('data-act="back"', HTML_PAGE)
+        # Backspace — в дисплее (до сетки), зелёный.
+        self.assertLess(HTML_PAGE.find('id="toolBack"'), HTML_PAGE.find('id="keys"'))
+        # Выражение крупно, операторы зелёные, живой результат ниже.
+        self.assertIn('id="exprView"', HTML_PAGE)
+        self.assertIn('tok-op', HTML_PAGE)
+        self.assertIn('function renderExpr()', HTML_PAGE)
+        self.assertIn('function updatePreview()', HTML_PAGE)
+
+    def test_live_preview_no_history_pollution(self):
+        # Preview идёт через /api/calculate, в историю пишет ТОЛЬКО doEquals.
+        self.assertIn("function schedulePreview()", HTML_PAGE)
+        self.assertEqual(HTML_PAGE.count("pushHistory(expression, data.formatted)"), 1)
+        idx = HTML_PAGE.find("function doEquals()")
+        self.assertGreater(idx, -1)
+        self.assertIn("pushHistory(expression, data.formatted)", HTML_PAGE[idx:idx + 800])
+
+    def test_memory_panel(self):
+        # Панель памяти MC/MR/M+/M− реально работает (Ali3).
+        self.assertIn('id="memPanel"', HTML_PAGE)
+        for token in ['data-mem="mc"', 'data-mem="mr"', 'data-mem="mplus"', 'data-mem="mminus"']:
+            self.assertIn(token, HTML_PAGE)
+        self.assertIn('id="memBadge"', HTML_PAGE)
+        self.assertIn('function memOp(op)', HTML_PAGE)
+        self.assertIn("localStorage.getItem('calc_mem')", HTML_PAGE)
+        self.assertIn('class="sheet hidden"', HTML_PAGE)
+
+    def test_extra_functions_panel(self):
+        # Панель π, x², √, 1/x реально работает (Ali3).
+        self.assertIn('id="fxPanel"', HTML_PAGE)
+        self.assertIn('data-ins="π"', HTML_PAGE)
+        for token in ['data-fx="square"', 'data-fx="sqrt"', 'data-fx="recip"']:
+            self.assertIn(token, HTML_PAGE)
+        self.assertIn('function fxOp(op)', HTML_PAGE)
+        self.assertIn('Math.sqrt', HTML_PAGE)
+
+    def test_parens_negate_comma_buttons(self):
+        # Одна "()", +/−, запятая — рабочие (не декоративные).
+        self.assertIn('function smartParens()', HTML_PAGE)
+        self.assertIn('function toggleSign()', HTML_PAGE)
+        self.assertIn('data-act="neg"', HTML_PAGE)
+
+    def test_no_touch_blockers(self):
+        # Повторный запрет: никакой preventDefault на touchstart/mousedown кнопок.
+        self.assertNotIn("['mousedown', 'touchstart']", HTML_PAGE)
+        # Закрытые панели не перехватывают touch (display:none / visibility).
+        self.assertIn('pointer-events: none', HTML_PAGE)
+        self.assertIn('.scrim.hidden', HTML_PAGE)
+        self.assertIn('.sheet.hidden', HTML_PAGE)
 
 
 if __name__ == "__main__":

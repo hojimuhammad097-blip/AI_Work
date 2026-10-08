@@ -9,20 +9,25 @@
     python calculator.py --port 8080
     python calculator.py --cli      # старый консольный REPL (для тестов/SSH)
 
-Кнопки интерфейса: 0-9, +, -, ×, ÷, %, скобки ( ), точка, =, C, ⌫ (backspace).
-Раскладка сетки:
-  C ( ) %
-  7 8 9 ÷
-  4 5 6 ×
-  1 2 3 −
-  0 . ⌫ +
-  = на всю ширину.
-Широкая кнопка «История» от края до края сразу под большим экраном.
-История — LEFT DRAWER: выезжает слева поверх цифровых кнопок
-(правая колонка % ÷ × − + остаётся видимой и нажимаемой:
-сетка кнопок поднята над затемнением, drawer уже 100%).
-Есть обработка ошибок
-(деление на ноль, неправильные выражения).
+Кнопки интерфейса (стиль Samsung, эталоны Ali2/Ali3):
+  дисплей: выражение крупно (операторы зелёные), живой результат ниже
+  считается автоматически до "="; внизу дисплея иконки: история,
+  память, доп. функции, Backspace (зелёный, справа).
+Раскладка сетки 5x4:
+  C () % ÷
+  7 8 9 ×
+  4 5 6 −
+  1 2 3 +
+  +/− 0 , =
+Одна кнопка «()» (умный выбор скобки), запятая как разделитель,
++/− меняет знак последнего числа, "=" в правом нижнем углу.
+Одна широкая кнопка «История» сразу под дисплеем.
+Память: MC/MR/M+/M− (панель, хранится локально).
+Доп. функции: π, x², √, 1/x (панель).
+История — панель поверх цифровой части (правая колонка операторов
+÷ × − + остаётся видимой и нажимаемой).
+Есть обработка ошибок (деление на ноль, неправильные выражения).
+Неполное выражение живого результата не показывает.
 
 Зависимости: только стандартная библиотека Python 3.8+.
 """
@@ -113,6 +118,7 @@ def normalize_expression(expression: str) -> str:
 
     Заменяет красивые символы кнопок на ASCII-операторы:
         '×' -> '*', '÷' -> '/', '−' (U+2212) -> '-',
+        'π' -> '(3.14159265358979)',
         запятая -> точка (десятичный разделитель).
     Символ '%' сохраняется как есть — его раскрывает expand_percent().
     """
@@ -120,6 +126,7 @@ def normalize_expression(expression: str) -> str:
         return ""
     text = str(expression)
     text = text.replace("×", "*").replace("÷", "/").replace("−", "-")
+    text = text.replace("π", "(3.14159265358979)")
     text = text.replace(",", ".")
     return text.strip()
 
@@ -301,6 +308,9 @@ HTML_PAGE = """<!DOCTYPE html>
     --op-dim-bg-hover: #143a2a;
     --eq-bg: #2bff7e;
     --eq-bg-hover: #5cff96;
+    --grey-op-bg: #a6abb2;
+    --grey-op-bg-hover: #bcc1c7;
+    --grey-op-ink: #14181f;
     --btn-danger: #ef4444;
     --btn-danger-hover: #f87171;
     --text: #f1f5f9;
@@ -345,21 +355,56 @@ HTML_PAGE = """<!DOCTYPE html>
           flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; height: 100%; }
   .display {
     background: var(--display); border-radius: 20px;
-    padding: 18px 16px; min-height: 128px;
-    display: flex; flex-direction: column; justify-content: center; gap: 6px;
+    padding: 16px 16px 10px; min-height: 128px;
+    display: flex; flex-direction: column; justify-content: flex-end; gap: 2px;
     overflow: hidden; flex-shrink: 1; flex: 1 1 auto;
   }
-  #expr {
-    width: 100%; background: transparent; border: none; outline: none;
-    color: var(--muted); font-size: 1.25rem; text-align: right;
-    min-height: 1.6em; word-break: break-all;
-    caret-color: transparent; user-select: none; -webkit-user-select: none;
+  /* Строка выражения (Ali2): крупная, операторы зелёные, курсор справа */
+  #exprView {
+    width: 100%; color: var(--text); font-size: 3rem; font-weight: 700;
+    text-align: right; min-height: 1.25em; line-height: 1.15;
+    word-break: break-all; user-select: none; -webkit-user-select: none;
   }
-  #expr[readonly] { caret-color: transparent; }
-  #result { font-size: 3rem; font-weight: 800; text-align: right;
-            min-height: 1.2em; word-break: break-all; line-height: 1.05; }
-  #result.ok { color: var(--text); }
-  #result.err { color: var(--btn-danger-hover); font-size: 1.15rem; font-weight: 600; }
+  #exprView .placeholder { color: #475569; font-weight: 500; }
+  #exprView .tok-op { color: #2bff7e; }
+  #exprView .caret::after {
+    content: ''; display: inline-block; width: 3px; height: 0.95em;
+    background: #2bff7e; margin-left: 3px; vertical-align: -0.12em;
+    animation: blink 1.1s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  /* Живой результат под выражением (Ali2: серый, меньше) */
+  #result { font-size: 1.5rem; font-weight: 500; text-align: right; color: var(--muted);
+            min-height: 1.4em; word-break: break-all; line-height: 1.2; }
+  #result.ok { color: var(--muted); }
+  #result.err { color: var(--btn-danger-hover); font-size: 1.05rem; font-weight: 600; }
+  /* Иконки функций внизу дисплея (Ali3): история, память, доп. функции, Backspace */
+  .display-tools {
+    display: flex; align-items: center; gap: 4px;
+    padding-top: 6px; margin-top: 2px;
+  }
+  button.tool {
+    border: none; background: transparent; color: #e2e8f0;
+    width: 48px; height: 40px; min-width: 48px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.45rem; font-weight: 500; cursor: pointer;
+    border-radius: 12px; touch-action: manipulation; user-select: none;
+    -webkit-user-select: none; padding: 0;
+  }
+  button.tool:hover { background: rgba(148,163,184,.12); }
+  button.tool:active { transform: scale(.93); }
+  button.tool .fx-ico { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.5px; }
+  button.tool.back {
+    margin-left: auto; color: #2bff7e;
+    border: 2px solid #2bff7e; border-radius: 12px;
+    width: 52px; height: 38px; min-width: 52px; font-size: 1.3rem;
+  }
+  button.tool.back:hover { background: rgba(43,255,126,.12); }
+  #memBadge {
+    color: #0f172a; background: #e2e8f0; border-radius: 6px;
+    font-size: 0.75rem; font-weight: 800; padding: 1px 6px; margin-left: 2px;
+  }
+  #memBadge[hidden] { display: none; }
   /* Зона клавиатуры: естественная высота (кнопки НЕ растягиваются),
      прижата к низу; свободную высоту забирает дисплей выше.
      Порядок как в Ali: дисплей -> History -> отступ 8px -> C() % ... -> = внизу. */
@@ -369,13 +414,13 @@ HTML_PAGE = """<!DOCTYPE html>
   }
   .grid {
     display: grid; grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(6, auto);
+    grid-template-rows: repeat(5, auto);
     gap: 8px; margin-top: 0; padding-top: 0;
     position: relative; z-index: 45;
     flex: 0 0 auto; height: auto;
   }
   button.key {
-    border: none; border-radius: 16px; background: var(--btn); color: var(--text);
+    border: none; border-radius: 32px; background: var(--btn); color: var(--text);
     font-size: 1.65rem; font-weight: 700; cursor: pointer;
     height: 64px; min-height: 64px; touch-action: manipulation; user-select: none;
     -webkit-user-select: none; -webkit-touch-callout: none;
@@ -387,10 +432,14 @@ HTML_PAGE = """<!DOCTYPE html>
   button.key:active { transform: scale(.96); }
   button.op, button.op-bright { background: var(--op-bright-bg); color: #4ade80; font-size: 1.65rem; }
   button.op:hover, button.op-bright:hover { background: var(--op-bright-bg-hover); }
-  button.op-dim { background: var(--op-dim-bg); color: #4ade80; font-size: 1.5rem; }
+  button.op-dim { background: var(--op-dim-bg); color: #e6f4ec; font-size: 1.5rem; }
   button.op-dim:hover { background: var(--op-dim-bg-hover); }
-  button.eq { background: var(--eq-bg); color: #052e16; font-size: 1.9rem; font-weight: 800;
-              grid-column: span 4; height: 64px; min-height: 64px; border-radius: 16px; }
+  /* Правая колонка Ali2 (÷ × − +): светло-серая, тёмный текст */
+  button.op-grey { background: var(--grey-op-bg); color: var(--grey-op-ink); font-size: 1.7rem; }
+  button.op-grey:hover { background: var(--grey-op-bg-hover); }
+  /* = в правом нижнем углу (Ali2): обычная ячейка, ярко-зелёная */
+  button.eq { background: var(--eq-bg); color: #ffffff; font-size: 1.9rem; font-weight: 800;
+              height: 64px; min-height: 64px; border-radius: 32px; }
   button.eq:hover { background: var(--eq-bg-hover); }
   button.danger { color: #ff8fa0; }
   /* История — плавающая панель НИЖЕ дисплея: закрывает цифровую часть,
@@ -416,6 +465,33 @@ HTML_PAGE = """<!DOCTYPE html>
     overflow: hidden;
   }
   .drawer.open { transform: translateX(0); visibility: visible; pointer-events: auto; }
+  /* Всплывающие панели памяти и доп. функций (Ali3): поверх клавиатуры */
+  .sheet {
+    position: absolute; top: 0; left: 0; right: 0;
+    background: #1e2c47; border: 1px solid rgba(148,163,184,.25);
+    border-radius: 18px; padding: 12px;
+    box-shadow: 0 18px 50px rgba(0,0,0,.55);
+    z-index: 60;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .sheet.hidden { display: none; }
+  .sheet-title { color: var(--muted); font-size: 0.85rem; font-weight: 700;
+                 display: flex; align-items: center; justify-content: space-between; }
+  .sheet-title button {
+    border: 1px solid var(--btn-hover); background: #0b1220; color: var(--text);
+    border-radius: 10px; width: 32px; height: 32px; font-size: 1rem; font-weight: 700;
+    cursor: pointer; touch-action: manipulation;
+  }
+  .sheet-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  button.fnkey {
+    border: none; border-radius: 16px; background: var(--btn); color: var(--text);
+    font-size: 1.15rem; font-weight: 700; cursor: pointer;
+    height: 52px; min-height: 52px; touch-action: manipulation; user-select: none;
+    -webkit-user-select: none; display: flex; align-items: center; justify-content: center;
+  }
+  button.fnkey:hover { background: var(--btn-hover); }
+  button.fnkey:active { transform: scale(.96); }
+  button.fnkey.hl { background: var(--op-bright-bg); color: #4ade80; }
   #closeHistory {
     align-self: flex-end;
     width: 34px; height: 34px; min-width: 34px;
@@ -453,20 +529,18 @@ HTML_PAGE = """<!DOCTYPE html>
   #historyList .hres { color: var(--text); font-size: 1.15rem; font-weight: 800; white-space: nowrap; flex: 0 0 auto; text-align: right; }
   .empty { color: var(--muted); text-align: center; font-size: 0.85rem; padding: 12px 8px; }
   @media (max-width: 380px) {
-    button.key, button.op-bright, button.op-dim { font-size: 1.45rem; height: 58px; min-height: 58px; }
-    button.eq { height: 58px; min-height: 58px; }
-    #result { font-size: 2.5rem; }
+    button.key { font-size: 1.45rem; height: 58px; min-height: 58px; }
+    #exprView { font-size: 2.5rem; }
     .display { min-height: 112px; }
   }
   @media (min-height: 700px) {
-    button.key, button.op-bright, button.op-dim { height: 68px; min-height: 68px; }
-    button.eq { height: 68px; min-height: 68px; }
+    button.key { height: 68px; min-height: 68px; }
   }
   @media (max-height: 640px) {
-    button.key, button.op-bright, button.op-dim { height: 54px; min-height: 54px; font-size: 1.4rem; }
-    button.eq { height: 54px; min-height: 54px; }
-    .display { min-height: 96px; padding: 12px 14px; }
-    #result { font-size: 2.2rem; }
+    button.key { height: 54px; min-height: 54px; font-size: 1.4rem; }
+    .display { min-height: 96px; padding: 12px 14px 8px; }
+    #exprView { font-size: 2.2rem; }
+    #result { font-size: 1.2rem; }
   }
 </style>
 </head>
@@ -474,32 +548,39 @@ HTML_PAGE = """<!DOCTYPE html>
 <div class="app">
   <div class="card">
     <div class="display">
-      <input id="expr" type="text" placeholder="0" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" readonly aria-label="Выражение" aria-readonly="true">
-      <div id="result" class="ok">0</div>
+      <div id="exprView" aria-label="Выражение"><span class="placeholder">0</span><span class="caret"></span></div>
+      <input type="hidden" id="expr" value="">
+      <div id="result" class="ok"></div>
+      <div class="display-tools">
+        <button class="tool" id="toolHistory" aria-label="История" title="История">◷</button>
+        <button class="tool" id="toolMemory" aria-label="Память" title="Память (MC, MR, M+, M−)">&#9646;</button>
+        <button class="tool" id="toolFx" aria-label="Дополнительные функции" title="Дополнительные функции"><span class="fx-ico">x&#960;</span></button>
+        <span id="memBadge" hidden>M</span>
+        <button class="tool back" id="toolBack" data-act="back" aria-label="Удалить символ" title="Backspace">⌫</button>
+      </div>
     </div>
     <button id="openHistory" aria-label="Открыть историю" aria-haspopup="dialog" title="История"><span class="hico">◷</span> История</button>
     <div class="board">
       <div class="grid" id="keys">
         <button class="key danger" data-act="clear">C</button>
-        <button class="key op-dim" data-ins="(">(</button>
-        <button class="key op-dim" data-ins=")">)</button>
+        <button class="key op-dim" data-act="parens">()</button>
         <button class="key op-bright" data-ins="%">%</button>
+        <button class="key op-grey" data-ins="÷">÷</button>
         <button class="key" data-ins="7">7</button>
         <button class="key" data-ins="8">8</button>
         <button class="key" data-ins="9">9</button>
-        <button class="key op-bright" data-ins="÷">÷</button>
+        <button class="key op-grey" data-ins="×">×</button>
         <button class="key" data-ins="4">4</button>
         <button class="key" data-ins="5">5</button>
         <button class="key" data-ins="6">6</button>
-        <button class="key op-bright" data-ins="×">×</button>
+        <button class="key op-grey" data-ins="−">−</button>
         <button class="key" data-ins="1">1</button>
         <button class="key" data-ins="2">2</button>
         <button class="key" data-ins="3">3</button>
-        <button class="key op-bright" data-ins="−">−</button>
+        <button class="key op-grey" data-ins="+">+</button>
+        <button class="key" data-act="neg">+/−</button>
         <button class="key" data-ins="0">0</button>
-        <button class="key" data-ins=".">.</button>
-        <button class="key op-dim" data-act="back">⌫</button>
-        <button class="key op-bright" data-ins="+">+</button>
+        <button class="key" data-ins=",">,</button>
         <button class="key eq" data-act="eq">=</button>
       </div>
       <div id="historyOverlay" class="scrim hidden"></div>
@@ -509,6 +590,24 @@ HTML_PAGE = """<!DOCTYPE html>
         <div id="historyEmpty" class="empty">Журнал пуст</div>
         <div class="drawer-foot">
           <button id="clearHistory">🗑 Очистить историю</button>
+        </div>
+      </div>
+      <div id="memPanel" class="sheet hidden" role="dialog" aria-label="Память">
+        <div class="sheet-title"><span>Память (MC, MR, M+, M−)</span><button id="closeMem" aria-label="Закрыть память">✕</button></div>
+        <div class="sheet-grid">
+          <button class="fnkey" data-mem="mc">MC</button>
+          <button class="fnkey" data-mem="mr">MR</button>
+          <button class="fnkey hl" data-mem="mplus">M+</button>
+          <button class="fnkey hl" data-mem="mminus">M−</button>
+        </div>
+      </div>
+      <div id="fxPanel" class="sheet hidden" role="dialog" aria-label="Дополнительные функции">
+        <div class="sheet-title"><span>Функции: π, x², √, 1/x</span><button id="closeFx" aria-label="Закрыть функции">✕</button></div>
+        <div class="sheet-grid">
+          <button class="fnkey hl" data-ins="π">π</button>
+          <button class="fnkey" data-fx="square">x²</button>
+          <button class="fnkey" data-fx="sqrt">√</button>
+          <button class="fnkey" data-fx="recip">1/x</button>
         </div>
       </div>
     </div>
@@ -524,7 +623,7 @@ const drawer = document.getElementById('historyDrawer');
 let history = [];
 try { history = JSON.parse(localStorage.getItem('calc_history') || '[]'); } catch(e) { history = []; }
 
-function openHistory() { renderHistory(); drawer.classList.add('open'); overlay.classList.remove('hidden'); }
+function openHistory() { try { closeSheets(); } catch(e) {} renderHistory(); drawer.classList.add('open'); overlay.classList.remove('hidden'); }
 function closeHistoryPanel() {
   drawer.classList.remove('open');
   overlay.classList.add('hidden');
@@ -562,9 +661,71 @@ function pushHistory(expression, result) {
   history = history.slice(0, 50);
   saveHistory(); renderHistory();
 }
+const exprView = document.getElementById('exprView');
+let freshResult = false; // после "=" цифры начинают новое выражение (как Samsung)
+
+/* Дисплей Ali2: выражение крупно, операторы зелёные, курсор справа */
+function renderExpr() {
+  const v = exprEl.value;
+  exprView.innerHTML = '';
+  if (!v) {
+    const ph = document.createElement('span'); ph.className = 'placeholder'; ph.textContent = '0';
+    exprView.appendChild(ph);
+  } else {
+    for (const ch of v) {
+      const s = document.createElement('span');
+      if ('+-*/×÷−%'.includes(ch)) { s.className = 'tok-op'; }
+      s.textContent = ch;
+      exprView.appendChild(s);
+    }
+  }
+  const c = document.createElement('span'); c.className = 'caret';
+  exprView.appendChild(c);
+}
+
+/* Живой результат ДО "=" (Ali2: 45+45 -> 90). Неполное/ошибочное
+   выражение показывает пусто (без ложного результата), в историю не пишется. */
+let previewTimer = null;
+function schedulePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(updatePreview, 120);
+}
+async function updatePreview() {
+  const expression = exprEl.value.trim();
+  if (!expression) { resultEl.textContent = ''; resultEl.className = 'ok'; return; }
+  try {
+    const resp = await fetch('/api/calculate', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({expression})
+    });
+    const data = await resp.json();
+    if (exprEl.value.trim() !== expression) { return; } // ввод уже изменился
+    if (data.ok) { resultEl.textContent = data.formatted; resultEl.className = 'ok'; }
+    else { resultEl.textContent = ''; resultEl.className = 'ok'; }
+  } catch (e) { /* офлайн: оставляем старый preview */ }
+}
+function afterInput() { renderExpr(); schedulePreview(); }
+
+/* Вычисление значения текущего выражения через сервер (для M+/M−/√) */
+async function evalCurrent() {
+  const expression = exprEl.value.trim();
+  if (!expression) { return null; }
+  try {
+    const resp = await fetch('/api/calculate', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({expression})
+    });
+    const data = await resp.json();
+    if (data.ok) { return data.result; }
+  } catch (e) {}
+  const n = parseFloat(expression.replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+function fmtNum(v) { return String(parseFloat(Number(v).toPrecision(12))); }
+
 async function doEquals() {
   const expression = exprEl.value.trim();
-  if (!expression) { showPreview('0', true); return; }
+  if (!expression) { showPreview('', true); return; }
   try {
     const resp = await fetch('/api/calculate', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -572,9 +733,12 @@ async function doEquals() {
     });
     const data = await resp.json();
     if (data.ok) {
-      showPreview(data.formatted, true);
+      // В историю пишется только по "="; живой preview туда не попадает.
       pushHistory(expression, data.formatted);
       exprEl.value = data.formatted;
+      freshResult = true;
+      renderExpr();
+      resultEl.textContent = ''; resultEl.className = 'ok';
     } else {
       showPreview(data.error || 'Ошибка', false);
     }
@@ -583,19 +747,39 @@ async function doEquals() {
     showPreview('Нет связи с сервером', false);
   }
 }
-function insertAtCursor(text) {
-  // Работает и для readonly-дисплея (soft keyboard подавлен,
-  // вставка идёт программно, поэтому физ. клавиатура не страдает).
-  // Если поле не в фокусе — добавляем в конец, иначе в каретку.
-  let s = exprEl.value.length, en = exprEl.value.length;
-  try {
-    if (document.activeElement === exprEl &&
-        typeof exprEl.selectionStart === 'number' &&
-        typeof exprEl.selectionEnd === 'number') {
-      s = exprEl.selectionStart; en = exprEl.selectionEnd;
-    }
-  } catch(e) {}
-  exprEl.value = exprEl.value.slice(0, s) + text + exprEl.value.slice(en);
+/* Одна кнопка "()" (Ali2): умный выбор скобки по балансу */
+function smartParens() {
+  const v = exprEl.value;
+  const open = (v.match(/\(/g) || []).length;
+  const close = (v.match(/\)/g) || []).length;
+  const last = v.slice(-1);
+  if (v === '' || '+-*/×÷−%('.includes(last)) { exprEl.value = v + '('; }
+  else if (open > close) { exprEl.value = v + ')'; }
+  else { exprEl.value = v + '('; }
+}
+/* +/−: смена знака последнего числа (45+45 -> 45+−45 = 0) */
+function toggleSign() {
+  const v = exprEl.value;
+  if (v === '') { exprEl.value = '-'; return; }
+  const m = v.match(/(-?\d+[.,]?\d*)$/);
+  if (!m) {
+    if (/[+\-*/×÷−%(]$/.test(v)) { exprEl.value = v + '-'; }
+    return;
+  }
+  const num = m[1];
+  if (num.startsWith('-')) { exprEl.value = v.slice(0, -num.length) + num.slice(1); }
+  else { exprEl.value = v.slice(0, -num.length) + '-' + num; }
+}
+/* Ввод с учётом freshResult: после "=" цифра начинает новое выражение */
+function appendText(t) {
+  if (freshResult && /^[0-9,(π]/.test(t)) { exprEl.value = t; }
+  else { exprEl.value = exprEl.value + t; }
+  freshResult = false;
+}
+function doBackspace() {
+  exprEl.value = exprEl.value.slice(0, -1);
+  freshResult = false;
+  afterInput();
 }
 function hideKeyboard() {
   // Убираем фокус с кнопок/поля, чтобы Android спрятал soft keyboard,
@@ -607,13 +791,14 @@ document.getElementById('keys').addEventListener('click', (e) => {
   // Нативный клик без preventDefault: цепочка tap (touchstart->touchend->click)
   // в Android WebView должна доходить до обработчика целиком.
   // Фокус тут же снимаем через blur(), системная клавиатура подавлена
-  // (дисплей readonly + inputmode=none), поэтому перехват touchstart не нужен.
+  // (состояние в скрытом поле, ввод программный), поэтому перехват touchstart не нужен.
   const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.act === 'clear') { exprEl.value = ''; showPreview('0', true); }
-  else if (b.dataset.act === 'back') { exprEl.value = exprEl.value.slice(0, -1); }
+  if (b.dataset.act === 'clear') { exprEl.value = ''; freshResult = false; resultEl.textContent = ''; resultEl.className = 'ok'; renderExpr(); }
+  else if (b.dataset.act === 'parens') { smartParens(); freshResult = false; afterInput(); }
+  else if (b.dataset.act === 'neg') { toggleSign(); freshResult = false; afterInput(); }
   else if (b.dataset.act === 'eq') { doEquals(); }
   else if (b.dataset.ins) {
-    insertAtCursor(b.dataset.ins);
+    appendText(b.dataset.ins); afterInput();
   }
   try { b.blur(); } catch(err) {}
   hideKeyboard();
@@ -622,33 +807,35 @@ document.getElementById('keys').addEventListener('click', (e) => {
 // 'mousedown'/'touchstart' для кнопок — отмена touchstart гасит весь tap
 // (touchend -> click не наступает) и кнопки перестают нажиматься пальцем.
 // Раньше такой перехват стоял и был причиной мёртвых кнопок в APK.
-// Фокус/клавиатура уже подавлены: дисплей readonly, после клика делаем blur().
+// Фокус/клавиатура уже подавлены: состояние в скрытом поле, после клика делаем blur().
 ;
 exprEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); doEquals(); }
   else if (e.key === 'Escape') {
     if (drawer.classList.contains('open')) { closeHistoryPanel(); }
-    else { exprEl.value = ''; showPreview('0', true); }
+    else if (!memPanel.classList.contains('hidden') || !fxPanel.classList.contains('hidden')) { closeSheets(); }
+    else { exprEl.value = ''; freshResult = false; renderExpr(); resultEl.textContent = ''; resultEl.className = 'ok'; }
   }
 });
-// Физ./системная клавиатура при readonly-дисплее:
-// символы не печатаются браузером сами, поэтому вставляем вручную.
-// Soft keyboard при этом не открывается (поле readonly + inputmode=none).
+// Физ. клавиатура: символы не печатаются сами (состояние в скрытом поле),
+// поэтому вставляем вручную. Soft keyboard не открывается.
 document.addEventListener('keydown', (e) => {
   if (drawer.classList.contains('open')) { return; }
+  if (!memPanel.classList.contains('hidden') || !fxPanel.classList.contains('hidden')) { return; }
   if (e.ctrlKey || e.metaKey || e.altKey) { return; }
   const t = e.target;
   if (t && (t.tagName === 'TEXTAREA' || t.closest?.('#historyDrawer'))) { return; }
   if (e.key === 'Enter') { e.preventDefault(); doEquals(); return; }
-  if (e.key === 'Backspace') { e.preventDefault(); exprEl.value = exprEl.value.slice(0, -1); return; }
+  if (e.key === 'Backspace') { e.preventDefault(); doBackspace(); return; }
   if (e.key === 'Escape') { return; } // уже обработан выше
   if (e.key && e.key.length === 1 && '0123456789+-*/%.(),×÷− '.includes(e.key)) {
     e.preventDefault();
-    insertAtCursor(e.key);
+    appendText(e.key); afterInput();
   }
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && drawer.classList.contains('open')) { closeHistoryPanel(); }
+  else if (e.key === 'Escape' && (!memPanel.classList.contains('hidden') || !fxPanel.classList.contains('hidden'))) { closeSheets(); }
 });
 document.getElementById('clearHistory').onclick = () => {
   history = []; saveHistory(); renderHistory();
@@ -656,6 +843,89 @@ document.getElementById('clearHistory').onclick = () => {
 document.getElementById('openHistory').onclick = openHistory;
 document.getElementById('closeHistory').onclick = closeHistoryPanel;
 overlay.addEventListener('click', () => closeHistoryPanel());
+
+/* --- Функциональные кнопки дисплея (Ali3): история, память, доп. функции --- */
+const memPanel = document.getElementById('memPanel');
+const fxPanel = document.getElementById('fxPanel');
+const memBadge = document.getElementById('memBadge');
+function closeSheets() {
+  memPanel.classList.add('hidden');
+  fxPanel.classList.add('hidden');
+}
+function toggleSheet(panel) {
+  const wasHidden = panel.classList.contains('hidden');
+  closeSheets();
+  closeHistoryPanel();
+  if (wasHidden) { panel.classList.remove('hidden'); }
+  try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch(e) {}
+}
+document.getElementById('toolHistory').onclick = () => { openHistory(); };
+document.getElementById('toolMemory').onclick = () => toggleSheet(memPanel);
+document.getElementById('toolFx').onclick = () => toggleSheet(fxPanel);
+document.getElementById('closeMem').onclick = closeSheets;
+document.getElementById('closeFx').onclick = closeSheets;
+document.getElementById('toolBack').onclick = (e) => {
+  doBackspace();
+  try { e.currentTarget.blur(); } catch(err) {}
+  hideKeyboard();
+};
+
+/* --- Память MC/MR/M+/M− (Ali3), хранится локально --- */
+let memVal = null;
+try { const m = JSON.parse(localStorage.getItem('calc_mem')); if (typeof m === 'number' && Number.isFinite(m)) { memVal = m; } } catch(e) { memVal = null; }
+function saveMem() { try { localStorage.setItem('calc_mem', JSON.stringify(memVal)); } catch(e) {} }
+function renderMem() { memBadge.hidden = (memVal === null); }
+async function memOp(op) {
+  if (op === 'mc') { memVal = null; saveMem(); renderMem(); return; }
+  if (op === 'mr') {
+    if (memVal !== null) {
+      const t = fmtNum(memVal);
+      if (freshResult || !exprEl.value) { exprEl.value = t; } else { exprEl.value = exprEl.value + t; }
+      freshResult = false; afterInput();
+    }
+    closeSheets(); return;
+  }
+  const v = await evalCurrent();
+  if (v === null || !Number.isFinite(v)) { return; }
+  if (op === 'mplus') { memVal = (memVal || 0) + v; }
+  else { memVal = (memVal || 0) - v; }
+  saveMem(); renderMem();
+}
+memPanel.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'closeMem') { return; }
+  if (b.dataset.mem) { memOp(b.dataset.mem); }
+  try { b.blur(); } catch(err) {}
+});
+
+/* --- Доп. функции π, x², √, 1/x (Ali3) --- */
+async function fxOp(op) {
+  if (op === 'square') {
+    const ex = exprEl.value.trim();
+    if (!ex) { return; }
+    exprEl.value = '(' + ex + ')*(' + ex + ')';
+    freshResult = false; afterInput();
+  } else if (op === 'recip') {
+    const ex = exprEl.value.trim();
+    if (!ex) { return; }
+    exprEl.value = '(1)/(' + ex + ')';
+    freshResult = false; afterInput();
+  } else if (op === 'sqrt') {
+    const v = await evalCurrent();
+    if (v === null || !Number.isFinite(v)) { return; }
+    if (v < 0) { showPreview('Ошибка ввода: корень из отрицательного числа', false); return; }
+    exprEl.value = fmtNum(Math.sqrt(v));
+    freshResult = false; afterInput();
+  }
+  closeSheets();
+}
+fxPanel.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'closeFx') { return; }
+  if (b.dataset.ins) { appendText(b.dataset.ins); afterInput(); closeSheets(); }
+  else if (b.dataset.fx) { fxOp(b.dataset.fx); }
+  try { b.blur(); } catch(err) {}
+});
 // Свайп влево по drawer закрывает его (жест как в видео)
 let _touchX = null;
 drawer.addEventListener('touchstart', (e) => {
@@ -671,6 +941,8 @@ drawer.addEventListener('touchend', (e) => {
 // текстовое поле при запуске, иначе Android сразу покажет keyboard.
 // Дисплей и так readonly, но отсутствие autofocus — требование задачи.
 if (document.activeElement && document.activeElement.blur) { try { document.activeElement.blur(); } catch(e) {} }
+renderExpr();
+renderMem();
 renderHistory();
 </script>
 </body>
