@@ -327,34 +327,103 @@ class TestHttpApi(unittest.TestCase):
 
 
 class TestHistoryPanel(unittest.TestCase):
-    """Поведение истории как LEFT DRAWER (HTML/JS): маленькая иконка часов
-    слева, выезд слева поверх кнопок, отображение, выбор, очистка,
-    закрытие. Математика и проценты не затрагиваются."""
+    """Поведение истории как LEFT DRAWER: широкая кнопка «История»
+    под экраном, выезд слева поверх цифровых кнопок, правая колонка
+    остаётся видимой/нажимаемой. Математика и проценты не затрагиваются."""
 
-    def test_history_button_compact_on_top(self):
-        # Маленькая иконка часов в верхней служебной строке СЛЕВА,
-        # а не большая прямоугольная кнопка «История».
+    def test_history_button_wide_under_display(self):
+        # Широкая кнопка «История» от края до края сразу под большим экраном.
         self.assertIn('id="openHistory"', HTML_PAGE)
-        topbar_pos = HTML_PAGE.find('class="topbar"')
-        btn_pos = HTML_PAGE.find('id="openHistory"')
-        card_pos = HTML_PAGE.find('class="card"')
-        self.assertGreaterEqual(topbar_pos, 0)
-        self.assertLess(topbar_pos, btn_pos)
-        self.assertLess(btn_pos, card_pos)
-        # Кнопка — иконка: внутри нет слова «История» как прямоугольник.
         btn_start = HTML_PAGE.find('id="openHistory"')
         btn_end = HTML_PAGE.find('</button>', btn_start)
-        btn_html = HTML_PAGE[btn_start:btn_end]
-        self.assertNotIn('>🕘 История<', HTML_PAGE[btn_start:btn_end + 20])
-        self.assertIn('🕘', btn_html)
+        btn_html = HTML_PAGE[btn_start:btn_end + 20]
+        self.assertIn('История', btn_html)
         self.assertIn('aria-label="Открыть историю"', btn_html)
-        # Кнопка слева от бренда (идёт раньше .brand в topbar).
-        brand_pos = HTML_PAGE.find('class="brand"')
-        self.assertLess(btn_pos, brand_pos)
-        # Компактный размер иконки в CSS (маленькая, не прямоугольник).
+        # Порядок в разметке: display -> openHistory -> grid.
+        display_pos = HTML_PAGE.find('class="display"')
+        grid_pos = HTML_PAGE.find('class="grid"')
+        self.assertGreater(display_pos, -1)
+        self.assertLess(display_pos, btn_start)
+        self.assertLess(btn_start, grid_pos)
+        # Широкая, от края до края: width 100%, min-height >= 44px.
         self.assertIn('#openHistory', HTML_PAGE)
-        self.assertIn('width: 38px', HTML_PAGE)
-        self.assertIn('height: 38px', HTML_PAGE)
+        self.assertIn('width: 100%', HTML_PAGE)
+        self.assertIn('min-height: 48px', HTML_PAGE)
+        # Старой маленькой иконки 38px быть не должно.
+        self.assertNotIn('width: 38px', HTML_PAGE)
+        # Верхнего заголовка/лишнего текста нет.
+        self.assertNotIn('class="topbar"', HTML_PAGE)
+        self.assertNotIn('class="brand"', HTML_PAGE)
+        self.assertNotIn('class="hint"', HTML_PAGE)
+
+    def test_keypad_layout(self):
+        # Раскладка строго:
+        # C ( ) % / 7 8 9 ÷ / 4 5 6 × / 1 2 3 − / 0 . ⌫ + / = на всю ширину.
+        order = [
+            'data-act="clear">C',
+            'data-ins="(">(',
+            'data-ins=")">)',
+            'data-ins="%">%',
+            'data-ins="7">7',
+            'data-ins="8">8',
+            'data-ins="9">9',
+            'data-ins="÷">÷',
+            'data-ins="4">4',
+            'data-ins="5">5',
+            'data-ins="6">6',
+            'data-ins="×">×',
+            'data-ins="1">1',
+            'data-ins="2">2',
+            'data-ins="3">3',
+            'data-ins="−">−',
+            'data-ins="0">0',
+            'data-ins=".">.',
+            'data-act="back">⌫',
+            'data-ins="+">+',
+            'data-act="eq">=',
+        ]
+        pos = -1
+        for token in order:
+            cur = HTML_PAGE.find(token)
+            self.assertGreater(cur, -1, f"не найдена кнопка {token}")
+            self.assertGreater(cur, pos, f"кнопка {token} не на своём месте")
+            pos = cur
+        # = на всю ширину.
+        self.assertIn('grid-column: span 4', HTML_PAGE)
+        # Цифровые кнопки на старых местах (проверка соседства).
+        self.assertLess(HTML_PAGE.find('data-ins="7"'), HTML_PAGE.find('data-ins="8"'))
+        self.assertLess(HTML_PAGE.find('data-ins="4"'), HTML_PAGE.find('data-ins="5"'))
+        self.assertLess(HTML_PAGE.find('data-ins="1"'), HTML_PAGE.find('data-ins="2"'))
+
+    def test_green_operation_buttons(self):
+        # Оранжевые кнопки операций и = заменены на зелёноватые.
+        self.assertIn('#22c55e', HTML_PAGE)
+        self.assertIn('#4ade80', HTML_PAGE)
+        self.assertNotIn('#f59e0b', HTML_PAGE)
+        self.assertNotIn('#fbbf24', HTML_PAGE)
+        self.assertNotIn('#3b3a2a', HTML_PAGE)
+
+    def test_big_display_no_header(self):
+        # Большой экран оставлен большим, заголовка и лишнего текста нет.
+        self.assertIn('class="display"', HTML_PAGE)
+        self.assertIn('min-height: 110px', HTML_PAGE)
+        self.assertIn('#result', HTML_PAGE)
+        self.assertIn('font-size: 2.4rem', HTML_PAGE)
+        self.assertNotIn('class="topbar"', HTML_PAGE)
+        self.assertNotIn('🧮 Калькулятор', HTML_PAGE)
+        self.assertNotIn('Тёмная тема', HTML_PAGE)
+        self.assertNotIn('Можно печатать с клавиатуры', HTML_PAGE)
+
+    def test_right_column_clickable_with_history(self):
+        # Drawer слева поверх цифровых кнопок, правая колонка видна и нажимаема:
+        # drawer уже 100%, сетка поднята над затемнением, но ниже drawer.
+        self.assertIn('width: min(78vw, 320px)', HTML_PAGE)
+        self.assertIn('left: 0', HTML_PAGE)
+        self.assertIn('z-index: 50', HTML_PAGE)  # drawer
+        self.assertIn('z-index: 40', HTML_PAGE)  # scrim
+        self.assertIn('z-index: 45', HTML_PAGE)  # grid + history button над scrim
+        self.assertIn('.drawer.open', HTML_PAGE)
+        self.assertIn('transform: translateX(-105%)', HTML_PAGE)
 
     def test_open_history(self):
         # Drawer существует как левая панель + отдельный scrim.

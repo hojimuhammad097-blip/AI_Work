@@ -10,11 +10,18 @@
     python calculator.py --cli      # старый консольный REPL (для тестов/SSH)
 
 Кнопки интерфейса: 0-9, +, -, ×, ÷, %, скобки ( ), точка, =, C, ⌫ (backspace).
-История открывается маленькой иконкой часов слева в верхней строке:
-LEFT DRAWER выезжает слева направо поверх кнопок калькулятора
-(калькулятор не перестраивается, правая колонка операций остаётся
-видимой; внизу drawer кнопка «Очистить журнал», клик по записи
-возвращает её в ввод). Есть обработка ошибок
+Раскладка сетки:
+  C ( ) %
+  7 8 9 ÷
+  4 5 6 ×
+  1 2 3 −
+  0 . ⌫ +
+  = на всю ширину.
+Широкая кнопка «История» от края до края сразу под большим экраном.
+История — LEFT DRAWER: выезжает слева поверх цифровых кнопок
+(правая колонка % ÷ × − + остаётся видимой и нажимаемой:
+сетка кнопок поднята над затемнением, drawer уже 100%).
+Есть обработка ошибок
 (деление на ноль, неправильные выражения).
 
 Зависимости: только стандартная библиотека Python 3.8+.
@@ -286,8 +293,8 @@ HTML_PAGE = """<!DOCTYPE html>
     --display: #0b1220;
     --btn: #334155;
     --btn-hover: #475569;
-    --btn-op: #f59e0b;
-    --btn-op-hover: #fbbf24;
+    --btn-op: #22c55e;
+    --btn-op-hover: #4ade80;
     --btn-danger: #ef4444;
     --btn-danger-hover: #f87171;
     --text: #f1f5f9;
@@ -311,18 +318,16 @@ HTML_PAGE = """<!DOCTYPE html>
   }
   .app { width: 100%; max-width: 430px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px;
          min-height: 100%; height: 100%; }
-  .topbar { display: flex; align-items: center; gap: 10px; padding-top: 6px; }
-  .brand { font-size: 1.25rem; font-weight: 700; }
-  .brand small { display: block; color: var(--muted); font-size: 0.8rem; font-weight: 400; }
   #openHistory {
-    width: 38px; height: 38px; min-width: 38px;
-    display: inline-flex; align-items: center; justify-content: center;
+    width: 100%; min-height: 48px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
     background: var(--card); border: 1px solid var(--btn-hover); color: var(--text);
-    border-radius: 12px; font-size: 1.15rem; line-height: 1;
-    cursor: pointer; touch-action: manipulation; padding: 0;
+    border-radius: 12px; font-size: 1.05rem; font-weight: 700; line-height: 1;
+    cursor: pointer; touch-action: manipulation; padding: 12px;
+    position: relative; z-index: 45;
   }
   #openHistory:hover { border-color: var(--accent); }
-  #openHistory:active { transform: scale(.94); }
+  #openHistory:active { transform: scale(.99); }
   .card { background: var(--card); border-radius: var(--radius); padding: 14px;
           box-shadow: 0 10px 30px rgba(0,0,0,.35);
           flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
@@ -345,6 +350,7 @@ HTML_PAGE = """<!DOCTYPE html>
   #result.err { color: var(--btn-danger-hover); font-size: 1.15rem; font-weight: 600; }
   .grid {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: auto; padding-top: 12px;
+    position: relative; z-index: 45;
   }
   button.key {
     border: none; border-radius: 12px; background: var(--btn); color: var(--text);
@@ -354,16 +360,16 @@ HTML_PAGE = """<!DOCTYPE html>
   }
   button.key:hover { background: var(--btn-hover); }
   button.key:active { transform: scale(.96); }
-  button.op { background: #3b3a2a; color: var(--btn-op-hover); font-size: 1.5rem; }
-  button.op:hover { background: #4a492f; }
-  button.eq { background: var(--btn-op); color: #1a1a1a; font-size: 1.7rem;
+  button.op { background: #123626; color: var(--btn-op-hover); font-size: 1.5rem; }
+  button.op:hover { background: #175138; }
+  button.eq { background: var(--btn-op); color: #052e16; font-size: 1.7rem;
               grid-column: span 4; min-height: 66px; }
   button.eq:hover { background: var(--btn-op-hover); }
   button.danger { color: #fecaca; }
-  .hint { color: var(--muted); font-size: 0.78rem; text-align: center; margin-top: 10px; margin-bottom: 0; }
-  /* История — LEFT DRAWER: выезжает слева поверх кнопок калькулятора.
-     Калькулятор (.app) при этом не перестраивается; правая колонка
-     кнопок остаётся видимой, т.к. ширина drawer < 100%. */
+  /* История — LEFT DRAWER: накладывается слева поверх цифровых кнопок.
+     Сетка кнопок (.grid, #openHistory) поднята над затемнением (z-index),
+     поэтому правая колонка % ÷ × − + остаётся видимой и нажимаемой;
+     ширина drawer < 100%. */
   .scrim {
     position: fixed; inset: 0; background: rgba(2,6,23,.18);
     z-index: 40;
@@ -428,15 +434,12 @@ HTML_PAGE = """<!DOCTYPE html>
 </head>
 <body>
 <div class="app">
-  <div class="topbar">
-    <button id="openHistory" aria-label="Открыть историю" aria-haspopup="dialog" title="История">🕘</button>
-    <div class="brand">🧮 Калькулятор<small>Тёмная тема · для телефона</small></div>
-  </div>
   <div class="card">
     <div class="display">
       <input id="expr" type="text" placeholder="0" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" readonly aria-label="Выражение" aria-readonly="true">
       <div id="result" class="ok">0</div>
     </div>
+    <button id="openHistory" aria-label="Открыть историю" aria-haspopup="dialog" title="История">🕘 История</button>
     <div class="grid" id="keys">
       <button class="key danger" data-act="clear">C</button>
       <button class="key op" data-ins="(">(</button>
@@ -460,7 +463,6 @@ HTML_PAGE = """<!DOCTYPE html>
       <button class="key op" data-ins="+">+</button>
       <button class="key eq" data-act="eq">=</button>
     </div>
-    <div class="hint">Можно печатать с клавиатуры: цифры, + − * / % ( ) . Enter (=), Backspace, Esc (C)</div>
   </div>
 </div>
 <div id="historyOverlay" class="scrim hidden"></div>
