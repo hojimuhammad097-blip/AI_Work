@@ -661,6 +661,28 @@ def run_gui(host: str = "127.0.0.1", port: int = 8000, open_browser: bool = True
         server.server_close()
 
 
+def start_local_calc_server(host: str = "127.0.0.1", port: int = 0):
+    """Запускает CalculatorHandler на loopback в фоновом потоке.
+
+    Используется Flet entry point (main.py): WebView открывает
+    ``http://127.0.0.1:<port>/``, а ``fetch('/api/calculate')`` из
+    существующего HTML_PAGE продолжает работать БЕЗ интернета —
+    запросы идут на localhost внутри устройства.
+
+    Существующие run_gui()/CalculatorHandler/HTML_PAGE НЕ меняются.
+
+    Returns:
+        tuple (server, port): HTTPServer в daemon-потоке и реальный порт.
+    """
+    import threading
+
+    server = HTTPServer((host, port), CalculatorHandler)
+    real_port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, real_port
+
+
 def run_cli() -> None:
     """Простой консольный REPL (режим --cli)."""
     print("Калькулятор (консольный режим). Введите выражение или 'выход'.")

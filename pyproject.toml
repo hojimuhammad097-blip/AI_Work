@@ -4,7 +4,20 @@ version = "1.0.0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "flet",
+    "flet-webview",
 ]
+
+# Flet entry point: main.py (Flet WebView + локальный loopback-сервер
+# из calculator.py). Сам калькулятор (HTML_PAGE, evaluate_expression)
+# лежит в calculator.py и не переписывался.
+[tool.flet.app]
+module = "main.py"
+
+# http://127.0.0.1:<port>/ внутри WebView — это cleartext-трафик на
+# loopback (не интернет). Без этого флага Android блокирует загрузку
+# с ошибкой NET::ERR_CLEARTEXT_NOT_PERMITTED.
+[tool.flet.android.manifest_application]
+usesCleartextTraffic = "true"
 
 [tool.flet.flutter.pubspec.dependency_overrides]
 jni = "1.1.0"
