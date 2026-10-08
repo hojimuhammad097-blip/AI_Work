@@ -347,7 +347,7 @@ HTML_PAGE = """<!DOCTYPE html>
     background: var(--display); border-radius: 20px;
     padding: 18px 16px; min-height: 128px;
     display: flex; flex-direction: column; justify-content: center; gap: 6px;
-    overflow: hidden; flex-shrink: 0;
+    overflow: hidden; flex-shrink: 1; flex: 1 1 auto;
   }
   #expr {
     width: 100%; background: transparent; border: none; outline: none;
@@ -360,22 +360,25 @@ HTML_PAGE = """<!DOCTYPE html>
             min-height: 1.2em; word-break: break-all; line-height: 1.05; }
   #result.ok { color: var(--text); }
   #result.err { color: var(--btn-danger-hover); font-size: 1.15rem; font-weight: 600; }
-  /* Зона клавиатуры: занимает всю доступную высоту до низа экрана */
+  /* Зона клавиатуры: естественная высота (кнопки НЕ растягиваются),
+     прижата к низу; свободную высоту забирает дисплей выше.
+     Порядок как в Ali: дисплей -> History -> отступ 8px -> C() % ... -> = внизу. */
   .board {
-    position: relative; flex: 1 1 auto; min-height: 0;
+    position: relative; flex: 0 0 auto;
     display: flex; flex-direction: column;
   }
   .grid {
     display: grid; grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(5, 1fr) minmax(62px, 0.9fr);
+    grid-template-rows: repeat(6, auto);
     gap: 8px; margin-top: 0; padding-top: 0;
     position: relative; z-index: 45;
-    flex: 1 1 auto; min-height: 0; height: 100%;
+    flex: 0 0 auto; height: auto;
   }
   button.key {
     border: none; border-radius: 16px; background: var(--btn); color: var(--text);
     font-size: 1.65rem; font-weight: 700; cursor: pointer;
-    min-height: 0; height: 100%; touch-action: manipulation; user-select: none;
+    height: 64px; min-height: 64px; touch-action: manipulation; user-select: none;
+    -webkit-user-select: none; -webkit-touch-callout: none;
     transition: transform .05s ease, background .15s ease;
     display: flex; align-items: center; justify-content: center;
     padding: 0;
@@ -387,7 +390,7 @@ HTML_PAGE = """<!DOCTYPE html>
   button.op-dim { background: var(--op-dim-bg); color: #4ade80; font-size: 1.5rem; }
   button.op-dim:hover { background: var(--op-dim-bg-hover); }
   button.eq { background: var(--eq-bg); color: #052e16; font-size: 1.9rem; font-weight: 800;
-              grid-column: span 4; min-height: 0; height: 100%; border-radius: 16px; }
+              grid-column: span 4; height: 64px; min-height: 64px; border-radius: 16px; }
   button.eq:hover { background: var(--eq-bg-hover); }
   button.danger { color: #ff8fa0; }
   /* История — плавающая панель НИЖЕ дисплея: закрывает цифровую часть,
@@ -407,11 +410,12 @@ HTML_PAGE = """<!DOCTYPE html>
     box-shadow: 20px 0 60px rgba(0,0,0,.55), 2px 0 12px rgba(0,0,0,.4);
     z-index: 50;
     transform: translateX(-108%);
-    transition: transform .25s ease;
+    visibility: hidden; pointer-events: none;
+    transition: transform .25s ease, visibility .25s ease;
     display: flex; flex-direction: column;
     overflow: hidden;
   }
-  .drawer.open { transform: translateX(0); }
+  .drawer.open { transform: translateX(0); visibility: visible; pointer-events: auto; }
   #closeHistory {
     align-self: flex-end;
     width: 34px; height: 34px; min-width: 34px;
@@ -449,9 +453,20 @@ HTML_PAGE = """<!DOCTYPE html>
   #historyList .hres { color: var(--text); font-size: 1.15rem; font-weight: 800; white-space: nowrap; flex: 0 0 auto; text-align: right; }
   .empty { color: var(--muted); text-align: center; font-size: 0.85rem; padding: 12px 8px; }
   @media (max-width: 380px) {
-    button.key, button.op-bright, button.op-dim { font-size: 1.45rem; }
+    button.key, button.op-bright, button.op-dim { font-size: 1.45rem; height: 58px; min-height: 58px; }
+    button.eq { height: 58px; min-height: 58px; }
     #result { font-size: 2.5rem; }
     .display { min-height: 112px; }
+  }
+  @media (min-height: 700px) {
+    button.key, button.op-bright, button.op-dim { height: 68px; min-height: 68px; }
+    button.eq { height: 68px; min-height: 68px; }
+  }
+  @media (max-height: 640px) {
+    button.key, button.op-bright, button.op-dim { height: 54px; min-height: 54px; font-size: 1.4rem; }
+    button.eq { height: 54px; min-height: 54px; }
+    .display { min-height: 96px; padding: 12px 14px; }
+    #result { font-size: 2.2rem; }
   }
 </style>
 </head>
@@ -589,9 +604,10 @@ function hideKeyboard() {
   try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch(e) {}
 }
 document.getElementById('keys').addEventListener('click', (e) => {
-  // preventDefault + blur кнопки: нажатие кнопок не должно
-  // переводить фокус в текстовое поле с вызовом Android keyboard.
-  e.preventDefault();
+  // Нативный клик без preventDefault: цепочка tap (touchstart->touchend->click)
+  // в Android WebView должна доходить до обработчика целиком.
+  // Фокус тут же снимаем через blur(), системная клавиатура подавлена
+  // (дисплей readonly + inputmode=none), поэтому перехват touchstart не нужен.
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.act === 'clear') { exprEl.value = ''; showPreview('0', true); }
   else if (b.dataset.act === 'back') { exprEl.value = exprEl.value.slice(0, -1); }
@@ -602,13 +618,12 @@ document.getElementById('keys').addEventListener('click', (e) => {
   try { b.blur(); } catch(err) {}
   hideKeyboard();
 });
-// mousedown/touchstart: не даём WebView переставить фокус так,
-// чтобы открылась системная клавиатура; клик всё равно дойдёт.
-['mousedown', 'touchstart'].forEach((ev) => {
-  document.getElementById('keys').addEventListener(ev, (e) => {
-    if (e.target && e.target.closest && e.target.closest('button')) { e.preventDefault(); }
-  }, {passive: false});
-});
+// ВАЖНО (Android WebView): здесь НЕ должно быть preventDefault() на
+// 'mousedown'/'touchstart' для кнопок — отмена touchstart гасит весь tap
+// (touchend -> click не наступает) и кнопки перестают нажиматься пальцем.
+// Раньше такой перехват стоял и был причиной мёртвых кнопок в APK.
+// Фокус/клавиатура уже подавлены: дисплей readonly, после клика делаем blur().
+;
 exprEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); doEquals(); }
   else if (e.key === 'Escape') {
