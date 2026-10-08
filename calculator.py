@@ -317,7 +317,7 @@ HTML_PAGE = """<!DOCTYPE html>
     overscroll-behavior: none;
   }
   .app { width: 100%; max-width: 430px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px;
-         min-height: 100%; height: 100%; }
+         height: auto; min-height: auto; justify-content: flex-start; }
   #openHistory {
     width: 100%; min-height: 48px;
     display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -330,7 +330,7 @@ HTML_PAGE = """<!DOCTYPE html>
   #openHistory:active { transform: scale(.99); }
   .card { background: var(--card); border-radius: var(--radius); padding: 14px;
           box-shadow: 0 10px 30px rgba(0,0,0,.35);
-          flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+          flex: 0 0 auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
   .display {
     background: var(--display); border-radius: var(--radius);
     padding: 16px 14px; min-height: 110px;
@@ -349,7 +349,7 @@ HTML_PAGE = """<!DOCTYPE html>
   #result.ok { color: var(--text); }
   #result.err { color: var(--btn-danger-hover); font-size: 1.15rem; font-weight: 600; }
   .grid {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: auto; padding-top: 12px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 0; padding-top: 0;
     position: relative; z-index: 45;
   }
   button.key {
