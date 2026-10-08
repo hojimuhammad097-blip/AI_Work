@@ -315,7 +315,7 @@ class TestHttpApi(unittest.TestCase):
         self.assertIn('id="historyOverlay"', html)
         self.assertIn('id="closeHistory"', html)
         self.assertIn('id="clearHistory"', html)
-        self.assertIn("Очистить журнал", html)
+        self.assertIn("Очистить историю", html)
 
     def test_api_percent(self):
         data = self._post("200+10%")
@@ -345,10 +345,10 @@ class TestHistoryPanel(unittest.TestCase):
         self.assertGreater(display_pos, -1)
         self.assertLess(display_pos, btn_start)
         self.assertLess(btn_start, grid_pos)
-        # Широкая, от края до края: width 100%, min-height >= 44px.
+        # Широкая, от края до края: width 100%, min-height >= 48px (Ali: 50px).
         self.assertIn('#openHistory', HTML_PAGE)
         self.assertIn('width: 100%', HTML_PAGE)
-        self.assertIn('min-height: 48px', HTML_PAGE)
+        self.assertIn('min-height: 50px', HTML_PAGE)
         # Старой маленькой иконки 38px быть не должно.
         self.assertNotIn('width: 38px', HTML_PAGE)
         # Верхнего заголовка/лишнего текста нет.
@@ -405,44 +405,47 @@ class TestHistoryPanel(unittest.TestCase):
 
     def test_big_display_no_header(self):
         # Большой экран оставлен большим, заголовка и лишнего текста нет.
+        # Ali: чёрный дисплей без внешней светло-синей рамки, крупный результат.
         self.assertIn('class="display"', HTML_PAGE)
-        self.assertIn('min-height: 110px', HTML_PAGE)
+        self.assertIn('min-height: 128px', HTML_PAGE)
         self.assertIn('#result', HTML_PAGE)
-        self.assertIn('font-size: 2.4rem', HTML_PAGE)
+        self.assertIn('font-size: 3rem', HTML_PAGE)
         self.assertNotIn('class="topbar"', HTML_PAGE)
         self.assertNotIn('🧮 Калькулятор', HTML_PAGE)
         self.assertNotIn('Тёмная тема', HTML_PAGE)
         self.assertNotIn('Можно печатать с клавиатуры', HTML_PAGE)
 
     def test_right_column_clickable_with_history(self):
-        # Drawer слева поверх цифровых кнопок, правая колонка видна и нажимаема:
-        # drawer уже 100%, сетка поднята над затемнением, но ниже drawer.
-        self.assertIn('width: min(78vw, 320px)', HTML_PAGE)
+        # Панель истории ниже дисплея, поверх цифровой части (Ali):
+        # drawer ~75% ширины (3 колонки), правая колонка видна и нажимаема:
+        # сетка поднята над затемнением, но ниже drawer.
+        self.assertIn('calc(75%', HTML_PAGE)
         self.assertIn('left: 0', HTML_PAGE)
         self.assertIn('z-index: 50', HTML_PAGE)  # drawer
         self.assertIn('z-index: 40', HTML_PAGE)  # scrim
         self.assertIn('z-index: 45', HTML_PAGE)  # grid + history button над scrim
         self.assertIn('.drawer.open', HTML_PAGE)
-        self.assertIn('transform: translateX(-105%)', HTML_PAGE)
+        self.assertIn('transform: translateX(-108%)', HTML_PAGE)
 
     def test_open_history(self):
-        # Drawer существует как левая панель + отдельный scrim.
+        # Панель истории как плавающая карточка ниже дисплея (Ali) + отдельный scrim.
         self.assertIn('id="historyDrawer"', HTML_PAGE)
         self.assertIn('id="historyOverlay"', HTML_PAGE)
         self.assertIn('class="drawer"', HTML_PAGE)
         self.assertIn('class="scrim hidden"', HTML_PAGE)
-        # Выезд СЛЕВА НАПРАВО: скрыт translateX(-105%), открыт translateX(0).
-        self.assertIn('transform: translateX(-105%)', HTML_PAGE)
+        # Выезд СЛЕВА НАПРАВО: скрыт translateX(-108%), открыт translateX(0).
+        self.assertIn('transform: translateX(-108%)', HTML_PAGE)
         self.assertIn('.drawer.open', HTML_PAGE)
         self.assertIn("transform: translateX(0)", HTML_PAGE)
         self.assertIn('transition: transform', HTML_PAGE)
-        # Поверх кнопок калькулятора: fixed, left 0, z-index выше scrim.
-        self.assertIn('position: fixed', HTML_PAGE)
+        # Поверх кнопок клавиатуры внутри .board: absolute, left 0, z-index выше scrim.
+        self.assertIn('position: absolute', HTML_PAGE)
+        self.assertIn('class="board"', HTML_PAGE)
         self.assertIn('left: 0', HTML_PAGE)
         self.assertIn('z-index: 50', HTML_PAGE)
         self.assertIn('z-index: 40', HTML_PAGE)
         # Занимает левую часть (не весь экран) — правая колонка видна.
-        self.assertIn('width: min(78vw, 320px)', HTML_PAGE)
+        self.assertIn('calc(75%', HTML_PAGE)
         # Открытие: рендер + drawer.open + показать scrim, .app не трогаем.
         self.assertIn("function openHistory()", HTML_PAGE)
         start = HTML_PAGE.find("function openHistory()")
@@ -484,8 +487,8 @@ class TestHistoryPanel(unittest.TestCase):
         self.assertNotIn('<h2>', HTML_PAGE)
 
     def test_history_display(self):
-        # Тёмный drawer в стиле калькулятора.
-        self.assertIn('background: #1c2942', HTML_PAGE)
+        # Тёмный drawer в стиле калькулятора (Ali: #1e2c47, скругление 18px).
+        self.assertIn('background: #1e2c47', HTML_PAGE)
         # Список вертикальный и прокручиваемый.
         self.assertIn('id="historyList"', HTML_PAGE)
         self.assertIn('flex-direction: column', HTML_PAGE)
@@ -495,9 +498,9 @@ class TestHistoryPanel(unittest.TestCase):
         self.assertIn("className = 'hres'", HTML_PAGE)
         self.assertIn("s1.textContent = h.expression", HTML_PAGE)
         self.assertIn("s2.textContent = '= ' + h.result", HTML_PAGE)
-        # Внизу кнопка «Очистить журнал».
+        # Внизу кнопка «Очистить историю» с иконкой корзины (Ali).
         self.assertIn('id="clearHistory"', HTML_PAGE)
-        self.assertIn('Очистить журнал', HTML_PAGE)
+        self.assertIn('Очистить историю', HTML_PAGE)
         foot_pos = HTML_PAGE.find('class="drawer-foot"')
         clear_pos = HTML_PAGE.find('id="clearHistory"')
         list_pos = HTML_PAGE.find('id="historyList"')
@@ -516,9 +519,9 @@ class TestHistoryPanel(unittest.TestCase):
         self.assertIn("history.length ? 'flex' : 'none'", HTML_PAGE)
 
     def test_clear_history(self):
-        # Кнопка «Очистить журнал» обязана быть.
+        # Кнопка «Очистить историю» обязана быть.
         self.assertIn('id="clearHistory"', HTML_PAGE)
-        self.assertIn('Очистить журнал', HTML_PAGE)
+        self.assertIn('Очистить историю', HTML_PAGE)
         # Очистка удаляет все записи и перерисовывает, drawer остаётся открытым.
         self.assertIn("getElementById('clearHistory').onclick", HTML_PAGE)
         idx = HTML_PAGE.find("getElementById('clearHistory').onclick")

@@ -290,17 +290,23 @@ HTML_PAGE = """<!DOCTYPE html>
   :root {
     --bg: #0f172a;
     --card: #1e293b;
-    --display: #0b1220;
-    --btn: #334155;
-    --btn-hover: #475569;
+    --display: #060d1d;
+    --btn: #2b3649;
+    --btn-hover: #3b4a63;
     --btn-op: #22c55e;
     --btn-op-hover: #4ade80;
+    --op-bright-bg: #14532d;
+    --op-bright-bg-hover: #166534;
+    --op-dim-bg: #0f2a1f;
+    --op-dim-bg-hover: #143a2a;
+    --eq-bg: #2bff7e;
+    --eq-bg-hover: #5cff96;
     --btn-danger: #ef4444;
     --btn-danger-hover: #f87171;
     --text: #f1f5f9;
     --muted: #94a3b8;
     --accent: #22d3ee;
-    --radius: 14px;
+    --radius: 18px;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html { height: 100%; }
@@ -308,82 +314,99 @@ HTML_PAGE = """<!DOCTYPE html>
     margin: 0; min-height: 100vh; min-height: 100dvh; height: 100dvh; background: var(--bg); color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
     display: flex; justify-content: center; align-items: stretch;
-    padding: 12px;
-    padding-top: max(12px, env(safe-area-inset-top));
-    padding-bottom: max(12px, env(safe-area-inset-bottom));
-    padding-left: max(12px, env(safe-area-inset-left));
-    padding-right: max(12px, env(safe-area-inset-right));
+    padding: 8px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
     touch-action: manipulation;
     overscroll-behavior: none;
   }
-  .app { width: 100%; max-width: 430px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px;
-         height: auto; min-height: auto; justify-content: flex-start; }
+  .app { width: 100%; max-width: 430px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px;
+         height: 100%; min-height: 0; justify-content: flex-start; flex: 1 1 auto; }
   #openHistory {
-    width: 100%; min-height: 48px;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    background: var(--card); border: 1px solid var(--btn-hover); color: var(--text);
-    border-radius: 12px; font-size: 1.05rem; font-weight: 700; line-height: 1;
+    width: 100%; min-height: 50px;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    background: #1a2438; border: 1px solid #334155; color: var(--text);
+    border-radius: 14px; font-size: 1.1rem; font-weight: 700; line-height: 1;
     cursor: pointer; touch-action: manipulation; padding: 12px;
-    position: relative; z-index: 45;
+    position: relative; z-index: 45; flex: 0 0 auto;
   }
   #openHistory:hover { border-color: var(--accent); }
   #openHistory:active { transform: scale(.99); }
-  .card { background: var(--card); border-radius: var(--radius); padding: 14px;
-          box-shadow: 0 10px 30px rgba(0,0,0,.35);
-          flex: 0 0 auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  #openHistory .hico {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: #f1f5f9; color: #0f172a; font-size: 1rem; line-height: 1; flex: 0 0 auto;
+  }
+  /* Внешняя карточка убрана (как в Ali): прозрачная, без подложки */
+  .card { background: transparent; border-radius: 0; padding: 0;
+          box-shadow: none;
+          flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; height: 100%; }
   .display {
-    background: var(--display); border-radius: var(--radius);
-    padding: 16px 14px; min-height: 110px;
+    background: var(--display); border-radius: 20px;
+    padding: 18px 16px; min-height: 128px;
     display: flex; flex-direction: column; justify-content: center; gap: 6px;
     overflow: hidden; flex-shrink: 0;
   }
   #expr {
     width: 100%; background: transparent; border: none; outline: none;
-    color: var(--muted); font-size: 1.15rem; text-align: right;
+    color: var(--muted); font-size: 1.25rem; text-align: right;
     min-height: 1.6em; word-break: break-all;
     caret-color: transparent; user-select: none; -webkit-user-select: none;
   }
   #expr[readonly] { caret-color: transparent; }
-  #result { font-size: 2.4rem; font-weight: 800; text-align: right;
-            min-height: 1.3em; word-break: break-all; line-height: 1.1; }
+  #result { font-size: 3rem; font-weight: 800; text-align: right;
+            min-height: 1.2em; word-break: break-all; line-height: 1.05; }
   #result.ok { color: var(--text); }
   #result.err { color: var(--btn-danger-hover); font-size: 1.15rem; font-weight: 600; }
+  /* Зона клавиатуры: занимает всю доступную высоту до низа экрана */
+  .board {
+    position: relative; flex: 1 1 auto; min-height: 0;
+    display: flex; flex-direction: column;
+  }
   .grid {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 0; padding-top: 0;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(5, 1fr) minmax(62px, 0.9fr);
+    gap: 8px; margin-top: 0; padding-top: 0;
     position: relative; z-index: 45;
+    flex: 1 1 auto; min-height: 0; height: 100%;
   }
   button.key {
-    border: none; border-radius: 12px; background: var(--btn); color: var(--text);
-    font-size: 1.35rem; font-weight: 600; cursor: pointer;
-    min-height: 62px; touch-action: manipulation; user-select: none;
+    border: none; border-radius: 16px; background: var(--btn); color: var(--text);
+    font-size: 1.65rem; font-weight: 700; cursor: pointer;
+    min-height: 0; height: 100%; touch-action: manipulation; user-select: none;
     transition: transform .05s ease, background .15s ease;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
   }
   button.key:hover { background: var(--btn-hover); }
   button.key:active { transform: scale(.96); }
-  button.op { background: #123626; color: var(--btn-op-hover); font-size: 1.5rem; }
-  button.op:hover { background: #175138; }
-  button.eq { background: var(--btn-op); color: #052e16; font-size: 1.7rem;
-              grid-column: span 4; min-height: 66px; }
-  button.eq:hover { background: var(--btn-op-hover); }
-  button.danger { color: #fecaca; }
-  /* История — LEFT DRAWER: накладывается слева поверх цифровых кнопок.
-     Сетка кнопок (.grid, #openHistory) поднята над затемнением (z-index),
-     поэтому правая колонка % ÷ × − + остаётся видимой и нажимаемой;
-     ширина drawer < 100%. */
+  button.op, button.op-bright { background: var(--op-bright-bg); color: #4ade80; font-size: 1.65rem; }
+  button.op:hover, button.op-bright:hover { background: var(--op-bright-bg-hover); }
+  button.op-dim { background: var(--op-dim-bg); color: #4ade80; font-size: 1.5rem; }
+  button.op-dim:hover { background: var(--op-dim-bg-hover); }
+  button.eq { background: var(--eq-bg); color: #052e16; font-size: 1.9rem; font-weight: 800;
+              grid-column: span 4; min-height: 0; height: 100%; border-radius: 16px; }
+  button.eq:hover { background: var(--eq-bg-hover); }
+  button.danger { color: #ff8fa0; }
+  /* История — плавающая панель НИЖЕ дисплея: закрывает цифровую часть,
+     правая колонка % ÷ × − + остаётся видимой и кликабельной.
+     Сетка (.grid) поднята над затемнением, drawer уже ~75%. */
   .scrim {
-    position: fixed; inset: 0; background: rgba(2,6,23,.18);
-    z-index: 40;
+    position: absolute; inset: 0; background: rgba(2,6,23,.25);
+    z-index: 40; border-radius: 16px;
   }
   .scrim.hidden { display: none; }
   .drawer {
-    position: fixed; top: 0; left: 0; bottom: 0;
-    width: min(78vw, 320px);
-    background: #1c2942; border-right: 1px solid rgba(148,163,184,.22);
-    border-radius: 0 20px 20px 0;
+    position: absolute; top: 0; left: 0; bottom: 0;
+    width: calc(75% - 2px);
+    background: #1e2c47; border: 1px solid rgba(148,163,184,.25);
+    border-radius: 18px;
     padding: 12px;
     box-shadow: 20px 0 60px rgba(0,0,0,.55), 2px 0 12px rgba(0,0,0,.4);
     z-index: 50;
-    transform: translateX(-105%);
+    transform: translateX(-108%);
     transition: transform .25s ease;
     display: flex; flex-direction: column;
     overflow: hidden;
@@ -391,20 +414,21 @@ HTML_PAGE = """<!DOCTYPE html>
   .drawer.open { transform: translateX(0); }
   #closeHistory {
     align-self: flex-end;
-    width: 32px; height: 32px; min-width: 32px;
+    width: 34px; height: 34px; min-width: 34px;
     display: flex; align-items: center; justify-content: center;
-    background: var(--display); border: 1px solid var(--btn-hover); color: var(--text);
-    border-radius: 10px; font-size: 1rem; font-weight: 700; line-height: 1;
+    background: #0b1220; border: 1px solid var(--btn-hover); color: var(--text);
+    border-radius: 10px; font-size: 1.05rem; font-weight: 700; line-height: 1;
     cursor: pointer; touch-action: manipulation; padding: 0; margin-bottom: 8px;
   }
   #closeHistory:hover { border-color: var(--accent); }
   #closeHistory:active { transform: scale(.94); }
   .drawer-foot { display: flex; gap: 10px; margin-top: 12px; }
   #clearHistory {
-    flex: 1 1 0; min-height: 48px;
+    flex: 1 1 0; min-height: 50px;
     border-radius: 14px; font-size: 1rem; font-weight: 700; cursor: pointer;
     touch-action: manipulation;
-    background: transparent; border: 1px solid var(--btn-hover); color: var(--text);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    background: transparent; border: 1px solid #475569; color: var(--text);
   }
   #clearHistory:hover { border-color: var(--muted); }
   #historyList { list-style: none; margin: 2px 0 0; padding: 2px;
@@ -413,22 +437,21 @@ HTML_PAGE = """<!DOCTYPE html>
                  -webkit-overflow-scrolling: touch; touch-action: pan-y;
                  flex: 1 1 auto; min-height: 0; }
   #historyList li {
-    background: var(--display); border: 1px solid rgba(148,163,184,.14);
+    background: #0b1220; border: 1px solid rgba(148,163,184,.14);
     border-radius: 14px; padding: 10px 12px;
-    font-size: 0.9rem; cursor: pointer; display: flex; flex-direction: column; gap: 3px;
+    font-size: 1rem; cursor: pointer;
+    display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 10px;
+    white-space: nowrap;
   }
   #historyList li:hover { border-color: var(--btn-hover); }
   #historyList li:active { background: #16213a; transform: scale(.99); }
-  #historyList .hexpr { color: var(--muted); font-size: 0.85rem; word-break: break-all; }
-  #historyList .hres { color: var(--text); font-size: 1.2rem; font-weight: 800; word-break: break-all; text-align: right; }
+  #historyList .hexpr { color: #cbd5e1; font-size: 1rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto; text-align: left; }
+  #historyList .hres { color: var(--text); font-size: 1.15rem; font-weight: 800; white-space: nowrap; flex: 0 0 auto; text-align: right; }
   .empty { color: var(--muted); text-align: center; font-size: 0.85rem; padding: 12px 8px; }
   @media (max-width: 380px) {
-    button.key { min-height: 58px; font-size: 1.25rem; }
-    #result { font-size: 2rem; }
-  }
-  @media (min-height: 700px) {
-    button.key { min-height: 64px; }
-    button.eq { min-height: 68px; }
+    button.key, button.op-bright, button.op-dim { font-size: 1.45rem; }
+    #result { font-size: 2.5rem; }
+    .display { min-height: 112px; }
   }
 </style>
 </head>
@@ -439,39 +462,41 @@ HTML_PAGE = """<!DOCTYPE html>
       <input id="expr" type="text" placeholder="0" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="none" readonly aria-label="Выражение" aria-readonly="true">
       <div id="result" class="ok">0</div>
     </div>
-    <button id="openHistory" aria-label="Открыть историю" aria-haspopup="dialog" title="История">🕘 История</button>
-    <div class="grid" id="keys">
-      <button class="key danger" data-act="clear">C</button>
-      <button class="key op" data-ins="(">(</button>
-      <button class="key op" data-ins=")">)</button>
-      <button class="key op" data-ins="%">%</button>
-      <button class="key" data-ins="7">7</button>
-      <button class="key" data-ins="8">8</button>
-      <button class="key" data-ins="9">9</button>
-      <button class="key op" data-ins="÷">÷</button>
-      <button class="key" data-ins="4">4</button>
-      <button class="key" data-ins="5">5</button>
-      <button class="key" data-ins="6">6</button>
-      <button class="key op" data-ins="×">×</button>
-      <button class="key" data-ins="1">1</button>
-      <button class="key" data-ins="2">2</button>
-      <button class="key" data-ins="3">3</button>
-      <button class="key op" data-ins="−">−</button>
-      <button class="key" data-ins="0">0</button>
-      <button class="key" data-ins=".">.</button>
-      <button class="key op" data-act="back">⌫</button>
-      <button class="key op" data-ins="+">+</button>
-      <button class="key eq" data-act="eq">=</button>
+    <button id="openHistory" aria-label="Открыть историю" aria-haspopup="dialog" title="История"><span class="hico">◷</span> История</button>
+    <div class="board">
+      <div class="grid" id="keys">
+        <button class="key danger" data-act="clear">C</button>
+        <button class="key op-dim" data-ins="(">(</button>
+        <button class="key op-dim" data-ins=")">)</button>
+        <button class="key op-bright" data-ins="%">%</button>
+        <button class="key" data-ins="7">7</button>
+        <button class="key" data-ins="8">8</button>
+        <button class="key" data-ins="9">9</button>
+        <button class="key op-bright" data-ins="÷">÷</button>
+        <button class="key" data-ins="4">4</button>
+        <button class="key" data-ins="5">5</button>
+        <button class="key" data-ins="6">6</button>
+        <button class="key op-bright" data-ins="×">×</button>
+        <button class="key" data-ins="1">1</button>
+        <button class="key" data-ins="2">2</button>
+        <button class="key" data-ins="3">3</button>
+        <button class="key op-bright" data-ins="−">−</button>
+        <button class="key" data-ins="0">0</button>
+        <button class="key" data-ins=".">.</button>
+        <button class="key op-dim" data-act="back">⌫</button>
+        <button class="key op-bright" data-ins="+">+</button>
+        <button class="key eq" data-act="eq">=</button>
+      </div>
+      <div id="historyOverlay" class="scrim hidden"></div>
+      <div id="historyDrawer" class="drawer" role="dialog" aria-modal="true" aria-label="История вычислений">
+        <button id="closeHistory" aria-label="Закрыть историю">✕</button>
+        <ul id="historyList"></ul>
+        <div id="historyEmpty" class="empty">Журнал пуст</div>
+        <div class="drawer-foot">
+          <button id="clearHistory">🗑 Очистить историю</button>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
-<div id="historyOverlay" class="scrim hidden"></div>
-<div id="historyDrawer" class="drawer" role="dialog" aria-modal="true" aria-label="История вычислений">
-  <button id="closeHistory" aria-label="Закрыть историю">✕</button>
-  <ul id="historyList"></ul>
-  <div id="historyEmpty" class="empty">Журнал пуст</div>
-  <div class="drawer-foot">
-    <button id="clearHistory">Очистить журнал</button>
   </div>
 </div>
 <script>
