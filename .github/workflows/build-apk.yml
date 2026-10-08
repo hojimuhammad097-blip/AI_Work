@@ -26,7 +26,7 @@ jobs:
 
       - name: Build APK
         run: |
-          flet build apk calculator.py
+          flet build apk --module-name calculator.pyflet build apk calculator.py
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
